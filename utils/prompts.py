@@ -225,79 +225,19 @@ personal_question_check_prompt_template = [
     }
 ]
 
-kb_search_prompt = [
-    {
-        "role": "system",
-        "content": "Given a list of relationships and a specific user query, your task is to determine which relationship, if any, from the list is most relevant to the user's query. If no relationships apply, return \"null\". This will help provide a contextually appropriate response.",
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": "["mother", "best friend", "employer", "favorite teacher"]",
-                "User Query": "I need advice on handling a tough situation at work."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "employer"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": "["sibling", "coach", "neighbor"]"
-                "User Query": "Who should I talk to about improving my basketball skills?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "coach"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ""librarian", "mechanic", "baker"]",
-                "User Query": "Who can help me with legal advice about a contract?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "null"
-            }
-        """
-    }
-]
-
 enrich_usery_query_prompt = [
     {
         "role": "system",
         "content": """
-            Given a list of relevant information and the corresponding list of relationships, and a specific user query, your task is to combine these elements to enrich the query *if needed*. 
-            The rule to combine these elements is find the most relevant piece of information from the "Relevant Information" list that provides good context to the user query. Enrich the user with this relevant piece of information. 
-            If none of the provided information is applicable, the output should return the original user query.
+            Given a relevant information and a specific user query, your task is to combine these elements to enrich the query *if needed*.  
+            If the provided information is not applicable, the output should return the original user query.
         """
     },
     {
         "role": "user",
         "content": """
             {
-                "Relationships": ["employer", "best friend"]
-                "Relevant Information": ["I worked at Google for 5 years.", "John, my best friend for 20 years, has always been my confidant."],
+                "Relevant Information": "I worked at Google for 5 years.",
                 "User Query": "I need advice on handling a tough situation."
             }
         """
@@ -306,8 +246,7 @@ enrich_usery_query_prompt = [
         "role": "assistant",
         "content": """
             {
-                "enriched_query": "I need advice on handling a tough situation at work with my employer, Google.",
-                "relation": "employer"
+                "enriched_query": "I need advice on handling a tough situation at work with my employer, Google."
             }
         """
     },
@@ -315,8 +254,7 @@ enrich_usery_query_prompt = [
         "role": "user",
         "content": """
             {
-                "Relationships": ["librarian", "mechanic", "rare collection supplier"]
-                "Relevant Information": ["I frequently visit the City Library and know the librarian well.", "Joe from Joe's Garage has been my trusted mechanic for 10 years.", "The librarian at City Library helped me find rare books for my collection."],
+                "Relevant Information": "I frequently visit the City Library and know the librarian well."
                 "User Query": "Who can help me with relationship advice?"
             }
         """
@@ -325,8 +263,7 @@ enrich_usery_query_prompt = [
         "role": "assistant",
         "content": """
             {
-                "enriched_query": "Who can help me with relationship advice?",
-                "relation": "null"
+                "enriched_query": "Who can help me with relationship advice?"
             }
         """
     },
@@ -334,8 +271,7 @@ enrich_usery_query_prompt = [
         "role": "user",
         "content": """
             {
-                "Relationships": ["financial advisor", "favourite fast food", "personal doctor"]
-                "Relevant Information": ["My financial advisor, Ms. Lopez, has guided me through many financial decisions for the past 3 years.", "I love eating at McDonalds!", "My personal doctor is Dr. Dummy"],
+                "Relevant Information": "My financial advisor, Ms. Lopez, has guided me through many financial decisions for the past 3 years."
                 "User Query": "I need help planning my budget for the next year."
             }
         """
@@ -344,8 +280,7 @@ enrich_usery_query_prompt = [
         "role": "assistant",
         "content": """
             {
-                "enriched_query": "I need help planning my budget for the next year with my financial advisor, Ms. Lopez.",
-                "relation": "financial advisor"
+                "enriched_query": "I need help planning my budget for the next year with my financial advisor, Ms. Lopez."
             }
         """
     },
@@ -353,8 +288,7 @@ enrich_usery_query_prompt = [
         "role": "user",
         "content": """
             {
-                "Relationships": ["home in 2000 year", "Daughter", "favourite street food"]
-                "Relevant Information": ["I lived in Madrid in the year 2000", "My Daugther's name is Maria", "I like tacos"],
+                "Relevant Information": "I lived in Madrid in the year 2000"
                 "User Query": "Yes, I lived in Paris in the year 1999."
             }
         """
@@ -363,8 +297,7 @@ enrich_usery_query_prompt = [
         "role": "assistant",
         "content": """
             {
-                "enriched_query": "Yes, I lived in Paris in the year 1999.",
-                "relation": "null"
+                "enriched_query": "Yes, I lived in Paris in the year 1999."
             }
         """
     }

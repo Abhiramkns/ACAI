@@ -1,7 +1,8 @@
 import torch
+from PIL import Image
+
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from transformers import pipeline
-from PIL import Image
 
 from .conv import Conversation
 
@@ -37,14 +38,14 @@ class Assistant:
 
         # Get knowledge from KB and enrich user query.
         kb_img_url = None
-        if len(self.conversation.personal_info) > 0:
-            llm_prompt_enrich_query = self.conversation.enrich_user_query_prompt(query)
+        if len(self.conversation.personal_info_files) > 0:
+            llm_prompt_enrich_query, doc, score = self.conversation.enrich_user_query_prompt(query)
             print('llm_prompt_enrich_query: ', llm_prompt_enrich_query)
-            output = self.pipe(llm_prompt_enrich_query)[-1]['generated_text'][-1]['content']
-            print('enriched output: ', output)
-            enriched_query, kb_img_url = self.conversation.decode_enriched_query(output)
-            print('enriched query: ', enriched_query)
-            if enriched_query is not None:
+            if score >= 0.5:
+                output = self.pipe(llm_prompt_enrich_query)[-1]['generated_text'][-1]['content']
+                print('enriched output: ', output)
+                enriched_query, kb_img_url = self.conversation.decode_enriched_query(output, doc, score)
+                print('enriched query: ', enriched_query)
                 query = enriched_query
 
         # Generate response for the user query
