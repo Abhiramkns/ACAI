@@ -109,17 +109,85 @@ assistant_response_prompt_template1 = [
     }
 ]
 
+output_format = '{ "entity": # Entity identified from the user\'s first-person point of view, "summary": # A concise summary of the information. }'
+example_output = '{ "entity": "I am a job seeker in AI/ML, "summary": "Looking for a job in software engineering, with a focus on AI and ML. Has 5 years of experience, including 2 years in AI/ML. Seeks a role working on cutting-edge projects and skill development." }'
+
+personal_question_check_prompt_template_3 = [
+    {
+        "role": "system",
+        "content": """
+            You are an assistant tasked with capturing key information from a user conversation and providing a concise summary of the details provided. Your output should be formatted as:
+            { "entity": # Entity identified from the user\'s first-person point of view, "summary": # A concise summary of the information. }
+
+            Strictly do not output anything else.
+        """
+    },
+    {
+        "role": "user",
+        "content": """
+            Context: 
+            Assistant: Hello! How can I assist you today? 
+            User: Hi, I'm looking for a new job in software engineering, particularly interested in roles focusing on artificial intelligence and machine learning.
+
+            Question: Could you tell me a bit more about your experience and what you're looking for in your next role?
+            User Response: User: Sure! I have 5 years of experience in software engineering, with the last 2 years focusing on AI and ML. I'm looking for a role where I can work on cutting-edge projects and continue to develop my skills.
+        """ 
+    },
+    {
+        "role": "assistant",
+        "content": """
+            Based on this conversation, extract and format the information as follows:
+            '{ "entity": "Job-search, "summary": "Looking for a job in software engineering, with a focus on AI and ML. Has 5 years of experience, including 2 years in AI/ML. Seeks a role working on cutting-edge projects and skill development." }'
+        """
+    },
+    {
+        "role": "user",
+        "content": """
+            Context:
+            {context_str}
+
+            Question: {question}
+            User Response: {user_response}
+        """
+    }
+]
+
+personal_question_check_prompt_template_2 = """
+    You are an assistant tasked with capturing key information from a user conversation and providing a concise summary of the details provided. Your output should be formatted as:
+    {output_format}
+
+    Strictly do not output anything else.
+
+    Here is an example conversation:
+    Context: 
+    Assistant: Hello! How can I assist you today? 
+    User: Hi, I'm looking for a new job in software engineering, particularly interested in roles focusing on artificial intelligence and machine learning.
+
+    Question: Could you tell me a bit more about your experience and what you're looking for in your next role?
+    User Response: User: Sure! I have 5 years of experience in software engineering, with the last 2 years focusing on AI and ML. I'm looking for a role where I can work on cutting-edge projects and continue to develop my skills.
+
+    Based on this conversation, extract and format the information as follows:
+    {example_output}
+
+    Now, process the following conversation:
+    Context:
+    {context_str}
+
+    Question: {question}
+    User Response: {user_response}
+"""
+
 personal_question_check_prompt_template = [
     {
         "role": "system",
-        "content": "Your task is to analyze a question and a user message to determine the nature of the question with respect to its personal relevance to the user and whether the user's message directly addresses the question. If the question is personal and the user's response is relevant, identify the type of personal relationship (keep it very specific) the question addresses and provide a combined concise summary and of the question and the user's message in one or two words. If the question is not personal or the response is irrelevant, return 'null' for both fields."
+        "content": "Your task is to analyze a question and a user message to determine the nature of the question with respect to its personal relevance to the user and whether the user's message directly addresses the question and has useful information. If the question is personal and the user's response is useful, identify the type of personal relationship (keep it very specific) the question addresses and provide a combined concise summary and of the question and the user's message in a detailed fashion. If the question is not personal or the response is irrelevant, return 'null' for both fields."
     },
     {
         "role": "user",
         "content": """
             {
                 "Question": "Who is your favorite author?",
-                "Answer": "I really enjoyed reading books by J.K. Rowling."
+                "Answer": "J.K. Rowling."
             }
         """
     },
@@ -128,7 +196,7 @@ personal_question_check_prompt_template = [
         "content": """
             {
                 "relationship": "favorite author",
-                "gist": "Enjoyed J.K. Rowling Books"
+                "gist": "My favourite author is J.K Rowling."
             }
         """
     },
@@ -146,7 +214,7 @@ personal_question_check_prompt_template = [
         "content": """
             {
                 "relationship": "mother's name",
-                "gist": "mother's name Susan"
+                "gist": "My mother's name Susan"
             }
         """
     },
@@ -155,7 +223,7 @@ personal_question_check_prompt_template = [
         "content": """
             {
                 "Question": "Where did you grow up?",
-                "Answer": "I grew up in New Your City"
+                "Answer": "I grew up in New Your City. I was born there in 2000."
             }
         """
     },
@@ -164,7 +232,7 @@ personal_question_check_prompt_template = [
         "content": """
             {
                 "relationship": "place of upbringing",
-                "gist": "Brought up in New York City"
+                "gist": "I was born and brought up in New York City in the year 2000."
             }
         """
     },
@@ -172,17 +240,7 @@ personal_question_check_prompt_template = [
         "role": "user",
         "content": """
             {
-                "Question": "What is the boiling point of water?",
-                "Answer": "Water boils at 100 degrees Celsius."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": "null",
-                "gist": "null"
+                "Question":
             }
         """
     },
@@ -224,7 +282,7 @@ personal_question_check_prompt_template = [
         """
     }
 ]
-
+                   
 enrich_usery_query_prompt = [
     {
         "role": "system",

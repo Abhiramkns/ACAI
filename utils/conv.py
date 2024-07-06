@@ -1,6 +1,7 @@
 import re
 import json
 import os
+from typing import List
 
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -9,7 +10,10 @@ from llama_index.llms.ollama import Ollama
 from .prompts import (
     assistant_response_prompt_template1,
     personal_question_check_prompt_template,
-    kb_search_prompt,
+    personal_question_check_prompt_template_2,
+    personal_question_check_prompt_template_3,
+    output_format,
+    example_output,
     enrich_usery_query_prompt
 )
 from collections import defaultdict
@@ -28,6 +32,8 @@ class Conversation:
                 self.conv_log = json.load(f)
         else:
             self.conv_log = self.history.copy()
+
+        self.curr_conv = []
 
         if not os.path.exists(os.path.join(config['logs'], 'personal_info')):
             os.makedirs(os.path.join(config['logs'], 'personal_info'))
@@ -49,6 +55,13 @@ class Conversation:
                 "role": "user",
                 "content": '{"message": ' + f'"{query}"' + "}",
                 "img_url": img_url
+            }
+        )
+
+        self.curr_conv.append(
+            {
+                "role": "user",
+                "content": '{"message": ' + f'"{query}"' + "}"
             }
         )
         return self.history
@@ -76,36 +89,50 @@ class Conversation:
             }
         )
 
-        # with open(os.path.join(self.config['logs'], 'llm_conv.json'), 'w') as f:
-        #     json.dump(self.conv_log, f)
+        self.curr_conv.append(
+            {
+                "role": "assistant",
+                "content": json.dumps(res)
+            }
+        )
 
-        # print('history', self.history)
         return res
     
-    def get_check_personal_question_prompt(self, user_message):
-        assistant_prev_response = self.history[-1]["content"]
+    def get_context_str(self):
+        context_str = ""
+        for i in range(len(self.curr_conv) - 1):
+            message = self.curr_conv[i]
+            if message['role'] == 'assistant':
+                assistant_message = json.loads(message['content'])
+                context_str += f"Assistant: {assistant_message['message']}\n"
+            else:
+                user_message = json.loads(message['content'])
+                context_str += f"User: {user_message['message']}\n"
+        return context_str
+
+    def get_check_personal_question_prompt(self, user_response):
+        if len(self.curr_conv) == 0:
+            return None, None
+        assistant_prev_response = self.curr_conv[-1]["content"]
         assistant_prev_response = json.loads(assistant_prev_response)
         question = assistant_prev_response["question"]
         if question == "null":
             return None, None
-        prompt = [
-            *personal_question_check_prompt_template,
-            {
-                "role": "user",
-                "content": '{"Question": "' + question + '",\n "Answer": "' + user_message + '"}'
-            }    
-        ]
+        context_str = self.get_context_str()
+        prompt: List[str] = personal_question_check_prompt_template_3.copy()
+        prompt[-1]["content"] = prompt[-1]["content"].format(context_str=context_str, question=question, user_response=user_response)
+        # prompt = personal_question_check_prompt_template_2.format(output_format=output_format, example_output=example_output, context_str=context_str, question=question, user_response=user_response)
 
         return prompt, question
 
     def decode_pq_check(self, output_string):
-        pattern = r'"relationship":\s*"([^"]*)",\s*"gist":\s*"([^"]*)"'
+        pattern = r'"entity":\s*"([^"]*)",\s*"summary":\s*"([^"]*)"'
         match = re.search(pattern, output_string)
         if match:
-            relationship, gist = match.groups()
-            if relationship == "null":
+            entity, summary = match.groups()
+            if entity == "null":
                 return False, None, None
-            return True, relationship, gist
+            return True, entity, summary
         else:
             return False, None, None
 
@@ -118,9 +145,6 @@ class Conversation:
         score = response[0].score
         with open(response[0].metadata['file_path'], 'r') as f:
             relevant_information = f.read()
-        # relevant_information = []
-        # for _, v in self.personal_info.items():
-        #     relevant_information.append(f"{str(v['entity'])}")
         
         if score >= 0.5:
             prompt = [
@@ -152,39 +176,13 @@ class Conversation:
             return enriched_query, img_url
         return None, None
 
-    def add_personal_info(self, relation, entity, img_url=None, question=None, complete_answer=None):
-        # self.personal_info[relation] = {
-        #     'entity': entity,
-        #     'relation': relation,
-        #     'img_url': img_url,
-        #     'question': question,
-        #     'answer': complete_answer
-        # }
-
-        # with open(os.path.join(self.config['logs'], 'personal_info.json'), 'w') as f:
-        #     json.dump(self.personal_info, f)
-
-        file_path = os.path.join(self.config['logs'], 'personal_info', f"{relation}.txt")
+    def add_personal_info(self, entity, summary, img_url=None, question=None, complete_answer=None):
+        file_path = os.path.join(self.config['logs'], 'personal_info', f"{entity}.txt")
         with open(file_path, "w") as f:
-            f.write(entity)
+            f.write(summary)
         self.personal_info_files.append(file_path)
 
         if img_url is not None:
-            file_path = os.path.join(self.config['logs'], 'personal_info', f"{relation}_img_url.txt")
+            file_path = os.path.join(self.config['logs'], 'personal_info', f"{entity}_img_url.txt")
             with open(file_path, "w") as f:
                 f.write(img_url)
-        
-    def validate_current_answer(self, relation, entity):
-        if len(self.personal_info) == 0:
-            return True, None
-        try:
-            if self.personal_info[relation] != entity:
-                return (
-                    False, 
-                    f"""
-                        For the question: {self.personal_info[relation]['question']}, you have previously answered: {self.personal_info[relation]['answer']}. But now, you are entering a different answer. 
-                    """
-                )
-            return True, None
-        except:
-            return True, None
