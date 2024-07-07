@@ -9,7 +9,7 @@ from .conv import Conversation
 class Assistant:
     def __init__(self, config) -> None:
         # LLM interface
-        self.pipe = pipeline("text-generation", model="meta-llama/Meta-Llama-3-8B-Instruct", device="cuda", max_new_tokens=1024, do_sample=False)#top_p=1, temperature=0.7, )
+        self.pipe = pipeline("text-generation", model="meta-llama/Meta-Llama-3-8B-Instruct", device="cuda", max_new_tokens=1024, top_p=1, temperature=0.7)
         # self.pipe = pipeline("text-generation", model="mistralai/Mistral-7B-Instruct-v0.3", device="cuda", torch_dtype=torch.float16, do_sample=False, max_new_tokens=1024)
 
         # Text to Image
