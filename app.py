@@ -1,5 +1,8 @@
 import gradio as gr
 import os
+import signal
+import sys
+import shutil
 import uuid
 from PIL import Image
 
@@ -19,6 +22,23 @@ config['BOT_UPLOAD_FOLDER'] = bot_upload_folder
 logs_path = os.path.join(os.getcwd(), 'logs')
 os.makedirs(logs_path, exist_ok=True)
 config['logs'] = logs_path
+
+def delete_folder(folder_path):
+    try:
+        # Delete the folder and all its contents
+        shutil.rmtree(folder_path)
+        print(f'Deleted folder {folder_path}')
+    except Exception as e:
+        print(f'Failed to delete folder {folder_path}. Reason: {e}')
+
+def signal_handler(sig, frame):
+    print('Signal received. Deleting all files in the folder...')
+    delete_folder(upload_folder)
+    delete_folder(logs_path)
+    sys.exit(0)
+
+# Register the signal handler for SIGINT (Ctrl+C)
+signal.signal(signal.SIGINT, signal_handler)    
 
 assistant = Assistant(config)
 
