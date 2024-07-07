@@ -60,7 +60,7 @@ class Assistant:
         self.detect_personal_information(query, img_url)
 
         # Generate response for the user query
-        print('query: ', new_query)
+        print('new query: ', new_query)
         messages = self.conversation.get_history(new_query.strip())
         # print('messages: ', messages)
         outputs = self.pipe(messages)
