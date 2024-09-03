@@ -3,6 +3,7 @@ from PIL import Image
 import numpy as np
 import json
 import requests
+import os
 
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
 from transformers import pipeline
@@ -45,7 +46,7 @@ class Assistant:
 
         self.retry = 2
 
-    def detect_personal_information(self, query, img_url=None):
+    def detect_personal_information(self, query, img_url=None, bot_image=None):
         print("Entering detect_personal_information")
         llm_prompt_pq_check = self.conversation.get_check_personal_question_prompt(
             query
@@ -58,7 +59,7 @@ class Assistant:
                 self.conversation.decode_pq_check(output)
             )
             if answered_personal_question_flag:
-                self.conversation.add_personal_info(entity, summary, img_url)
+                self.conversation.add_personal_info(entity, summary, img_url, bot_image)
 
         print("Exiting detect_personal_information")
 
@@ -70,7 +71,7 @@ class Assistant:
             relevant_info, kb_img_url = self.conversation.get_relevant_info(query)
         return relevant_info, kb_img_url
 
-    def response_to_user(self, relevant_info, user_message, internet_info):
+    def response_to_user(self, relevant_info, user_message, internet_info, img_url):
         res = {
             "message": "Error while processing the message. Please try again later",
             "prompt": "",
@@ -79,7 +80,7 @@ class Assistant:
         for _ in range(self.retry):
             try:
                 prompt = self.conversation.get_llm_prompt(
-                    relevant_info, user_message, internet_info
+                    relevant_info, user_message, internet_info, img_url
                 )
                 print("prompt: ", prompt)
                 outputs = self.pipe(prompt)
@@ -88,7 +89,7 @@ class Assistant:
                 print("res: ", res)
                 return res, json.dumps(res)
             except:
-                return res, ""
+                pass
         return res, ""
 
     def get_relevant_information_from_internet(self, query):
@@ -113,25 +114,47 @@ class Assistant:
         }
         result = json.loads(requests.post(url, json=payload).content)
         with open("internet_response", "w") as f:
-            json.dump({"question": question, "result": result}, f)
-        print("internet result: ", result)
-        return result
+            json.dump(result, f)
+        print("internet result: ", result["answer"])
+        return result["answer"]
 
     def process_message(self, query, img_url=None, response_img_url=None):
         # Get relevant information from user personal details
         relevant_info, kb_img_url = self.get_relevant_info(query)
-
-        # Check if the user answered LLM's personal questions.
-        self.detect_personal_information(query, img_url)
 
         # Get relevant information from the internet.
         internet_info = self.get_relevant_information_from_internet(query)
 
         # Get response from llm
         bot_image_url = None
-        res, output = self.response_to_user(relevant_info, query.strip(), internet_info)
+        res, output = self.response_to_user(
+            relevant_info, query.strip(), internet_info, img_url
+        )
         if res["prompt"] != "":
             bot_image_url = response_img_url
+
+        response = res["message"]
+        prompt: str = res["prompt"]
+
+        # Generate Image
+        image = None
+        if img_url is not None:
+            image = Image.open(img_url).convert("RGB")
+            image = image.resize((768, 768))
+        elif kb_img_url is not None:
+            image = Image.open(kb_img_url).convert("RGB")
+            image = image.resize((768, 768))
+
+        bot_image = None
+        if prompt != "":
+            if image is not None:
+                assert type(image) != type(None), "Input Image is not provided"
+                bot_image = self.image2image(image, prompt)
+            else:
+                bot_image = self.text2image(prompt)
+
+        # Check if the user answered LLM's personal questions.
+        self.detect_personal_information(query, img_url, bot_image)
 
         # Add user query to history.
         self.conversation.add_to_conv(query.strip())
@@ -139,7 +162,7 @@ class Assistant:
         # Add llm resposne to the history
         self.conversation.add_to_conv(output, bot_image_url, role="assistant")
 
-        return res, kb_img_url
+        return response, bot_image, query
 
     def text2image(self, prompt):
         print("Inside text2image")
@@ -161,25 +184,9 @@ class Assistant:
             y = y.astype(np.float32)
             y /= np.max(np.abs(y))
             query = self.transcriber({"sampling_rate": sr, "raw": y})["text"]
-        output, kb_img_url = self.process_message(query, image_url, response_image_url)
-
-        response = output["message"]
-        prompt: str = output["prompt"]
-
-        image = None
-        if image_url is not None:
-            image = Image.open(image_url).convert("RGB")
-            image = image.resize((768, 768))
-        elif kb_img_url is not None:
-            image = Image.open(kb_img_url).convert("RGB")
-            image = image.resize((768, 768))
-
-        if prompt != "":
-            if image is not None:
-                assert type(image) != type(None), "Input Image is not provided"
-                image = self.image2image(image, prompt)
-            else:
-                image = self.text2image(prompt)
+        response, image, query = self.process_message(
+            query, image_url, response_image_url
+        )
 
         torch.cuda.empty_cache()
         return response, image, query

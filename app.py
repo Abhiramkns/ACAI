@@ -73,9 +73,6 @@ def respond(message, audio, chat_history):
     if bot_image is not None:
         chat_history.append((None, (bot_img_url,)))
 
-    # if bot_question is not None:
-    #     chat_history.append((None, bot_question))
-
     return (
         gr.MultimodalTextbox(value=None, show_label=False),
         gr.update(value=None),
@@ -85,12 +82,6 @@ def respond(message, audio, chat_history):
 
 with gr.Blocks() as demo:
     chatbot = gr.Chatbot(
-        value=[
-            (
-                None,
-                "Hello! How can I assist you today?\n 1. Would you like to view images of famous personalities?\n 2. Are you interested in seeing pictures of your favorite foods?\n 3. Would you like to explore images of your favorite places?\n Please let me know how I can help!",
-            )
-        ],
         avatar_images=["./assets/default_user.png", "./assets/ai_bot.jpeg"],
         height=580,
     )

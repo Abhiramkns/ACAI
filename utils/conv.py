@@ -14,6 +14,7 @@ from .prompts import (
     assistant_get_info_prompt,
     get_info_output_format,
     get_info_examples,
+    few_shot_example,
 )
 from collections import defaultdict
 from pathlib import Path
@@ -55,7 +56,7 @@ class Conversation:
         )
         return prompt
 
-    def get_llm_prompt(self, relevant_info, user_message, internet_info):
+    def get_llm_prompt(self, relevant_info, user_message, internet_info, img_url):
         conversation_str = self.get_conversation_str()
         if conversation_str != "":
             conversation_str = f"Conversation: {conversation_str}"
@@ -63,11 +64,16 @@ class Conversation:
             relevant_info = f"User Personal Context Str: {relevant_info}"
         if internet_info != "":
             internet_info = f"Internet Information: {internet_info}"
+        user_img = ""
+        if img_url is not None:
+            user_img = "Additional Context: User gave an image"
         prompt = assistant_response_prompt_template1.format(
             llm_response_output_format,
+            few_shot_example,
             relevant_info,
             internet_info,
             conversation_str,
+            user_img,
             user_message,
         )
         return prompt
@@ -79,6 +85,9 @@ class Conversation:
         self.conv_log.append({"role": role, "content": content, "img_url": img_url})
 
         self.curr_conv.append({"role": role, "content": content})
+        if os.path.exists(os.path.join(self.config["logs"], "conversation.json")):
+            with open(os.path.join(self.config["logs"], "conversation.json"), "w") as f:
+                json.dump(self.curr_conv, f)
         return self.history
 
     def decode_get_info_result(self, output):
@@ -115,15 +124,22 @@ class Conversation:
         if len(self.curr_conv) == 0:
             return None
         context_str = self.get_conversation_str()
-        prompt: List[str] = personal_question_check_prompt_template_3.copy()
-        prompt[-1]["content"] = prompt[-1]["content"].format(
-            context_str=context_str, user_response=user_response
+        prompt: List[dict] = personal_question_check_prompt_template_3.copy()
+        prompt.append(
+            {
+                "role": "user",
+                "content": f"""
+                    Context:
+                    {context_str}
+                    User: {user_response}
+                """,
+            },
         )
 
         return prompt
 
     def decode_pq_check(self, output_string):
-        pattern = r'"entity":\s*"([^"]*)",\s*"summary":\s*"([^"]*)"'
+        pattern = r'"*entity"*:\s*"*([^"]*)"*,\s*"*summary"*:\s*"*([^"]*)"*'
         match = re.search(pattern, output_string)
         if match:
             entity, summary = match.groups()
@@ -152,7 +168,13 @@ class Conversation:
             img_doc_name = (
                 f"{response[0].metadata['file_path'].split(".")[0]}_img_url.txt"
             )
-            if os.path.exists(img_doc_name):
+            bot_img_doc_name = (
+                f"{response[0].metadata['file_path'].split(".")[0]}_bot_img_url.txt"
+            )
+            if os.path.exists(bot_img_doc_name):
+                with open(bot_img_doc_name, "r") as f:
+                    img_url = f.read()
+            elif os.path.exists(img_doc_name):
                 with open(img_doc_name, "r") as f:
                     img_url = f.read()
             return relevant_information, img_url
@@ -174,7 +196,7 @@ class Conversation:
             return enriched_query, img_url
         return None, None
 
-    def add_personal_info(self, entity, summary, img_url=None):
+    def add_personal_info(self, entity, summary, img_url=None, bot_image=None):
         file_path = os.path.join(self.config["logs"], "personal_info", f"{entity}.txt")
         directory_path = os.path.dirname(file_path)
         os.makedirs(directory_path, exist_ok=True)
@@ -188,3 +210,15 @@ class Conversation:
             )
             with open(file_path, "w") as f:
                 f.write(img_url)
+
+        if bot_image is not None:
+            img_save_path = os.path.join(
+                self.config["BOT_UPLOAD_FOLDER"], f"{entity}_bot_img.jpg"
+            )
+            bot_image.save(img_save_path)
+
+            file_path = os.path.join(
+                self.config["logs"], "personal_info", f"{entity}_bot_img_url.txt"
+            )
+            with open(file_path, "w") as f:
+                f.write(img_save_path)
