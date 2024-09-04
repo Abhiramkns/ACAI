@@ -15,6 +15,8 @@ from .prompts import (
     get_info_output_format,
     get_info_examples,
     few_shot_example,
+    personal_info_output_format,
+    example_personal_info_output,
 )
 from collections import defaultdict
 from pathlib import Path
@@ -94,19 +96,25 @@ class Conversation:
         pattern = (
             r'\{\s*\"reasoning\":\s*"([^"]*)",\s*\"search prompt\":\s*"([^"]*)"\s*}'
         )
-        match = re.search(pattern, output, re.DOTALL)
-        res = {"reasoning": match.group(1), "question": match.group(2)}
+        try:
+            match = re.search(pattern, output, re.DOTALL)
+            res = {"reasoning": match.group(1), "question": match.group(2)}
+        except:
+            return None
         return res["question"]
 
     def decode_llm_response(self, output):
-        pattern = r'\{\s*\"reasoning\":\s*"([^"]*)",\s*\"message\":\s*"([^"]*)"\s*,\s*\"prompt\":\s*"([^"]*)"\s*}'
-        match = re.search(pattern, output, re.DOTALL)
-        res = {
-            "reasoning": match.group(1),
-            "message": match.group(2),
-            "prompt": match.group(3),
-        }
-        return res
+        pattern = r'\{\s*\"reasoning\":\s*"([^"]*)",\s*\"prompt\":\s*"([^"]*)"\s*,\s*\"message\":\s*"([^"]*)"\s*}'
+        try:
+            match = re.search(pattern, output, re.DOTALL)
+            res = {
+                "reasoning": match.group(1),
+                "message": match.group(3),
+                "prompt": match.group(2),
+            }
+            return res
+        except:
+            return None
 
     def get_conversation_str(self):
         context_str = ""
@@ -124,18 +132,9 @@ class Conversation:
         if len(self.curr_conv) == 0:
             return None
         context_str = self.get_conversation_str()
-        prompt: List[dict] = personal_question_check_prompt_template_3.copy()
-        prompt.append(
-            {
-                "role": "user",
-                "content": f"""
-                    Context:
-                    {context_str}
-                    User: {user_response}
-                """,
-            },
+        prompt: str = personal_question_check_prompt_template_3.format(
+            personal_info_output_format, example_personal_info_output, context_str
         )
-
         return prompt
 
     def decode_pq_check(self, output_string):

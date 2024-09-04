@@ -8,6 +8,12 @@ from PIL import Image
 
 from utils.generation import Assistant
 
+import os
+
+os.environ["OPENAI_API_KEY"] = (
+    "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"
+)
+
 
 config = {}
 upload_folder = os.path.join(os.getcwd(), "uploads")

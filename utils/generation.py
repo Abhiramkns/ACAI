@@ -3,12 +3,22 @@ from PIL import Image
 import numpy as np
 import json
 import requests
-import os
+import time
 
 from diffusers import AutoPipelineForImage2Image, AutoPipelineForText2Image
-from transformers import pipeline
+from transformers import (
+    AutoTokenizer,
+    pipeline,
+    TextIteratorStreamer,
+    AutoModelForCausalLM,
+)
 
 from .conv import Conversation
+from .stop_thread_util import thread_with_trace
+
+
+def pipe_thread(pipe, prompt):
+    pipe(prompt)
 
 
 class Assistant:
@@ -19,32 +29,56 @@ class Assistant:
         )
 
         # LLM interface
-        self.pipe = pipeline(
-            "text-generation",
-            model="meta-llama/Meta-Llama-3.1-8B-Instruct",
-            device="cuda",
-            max_new_tokens=1024,
-            top_p=1,
-            temperature=0.7,
-            return_full_text=False,
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "meta-llama/Meta-Llama-3.1-8B-Instruct"
         )
+        self.llm_model = AutoModelForCausalLM.from_pretrained(
+            "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        ).to("cuda")
 
         # Text to Image
         self.t2i = AutoPipelineForText2Image.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16
-        ).to("cuda")
+            "stabilityai/stable-diffusion-xl-base-1.0"
+        )
 
         # Image to Image
         self.i2i = AutoPipelineForImage2Image.from_pretrained(
             "stabilityai/stable-diffusion-xl-base-1.0",
-            torch_dtype=torch.float16,
             variant="fp16",
             use_safetensors=True,
-        ).to("cuda")
+        )
 
         self.conversation = Conversation(config)
 
         self.retry = 2
+
+    def run_llm(self, prompt, response_decoder=None):
+        inputs = self.tokenizer([prompt], return_tensors="pt").to("cuda")
+        streamer = TextIteratorStreamer(
+            self.tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True
+        )
+        generation_kwargs = dict(
+            inputs,
+            streamer=streamer,
+            max_new_tokens=1024,
+            top_p=1,
+            temperature=0.7,
+            return_dict_in_generate=True,
+        )
+        t = thread_with_trace(target=self.llm_model.generate, kwargs=generation_kwargs)
+        t.start()
+        response = ""
+        for new_text in streamer:
+            response += new_text
+            if response_decoder is None:
+                res = response
+                continue
+            res = response_decoder(response)
+            if res is not None:
+                t.kill()
+                t.join()
+                break
+        return res
 
     def detect_personal_information(self, query, img_url=None, bot_image=None):
         print("Entering detect_personal_information")
@@ -53,22 +87,23 @@ class Assistant:
         )
         if llm_prompt_pq_check is not None:
             print("llm_pq_prompt: ", llm_prompt_pq_check)
-            output = self.pipe(llm_prompt_pq_check)[-1]["generated_text"]
-            print("pq check: ", output)
-            answered_personal_question_flag, entity, summary = (
-                self.conversation.decode_pq_check(output)
+            output = self.run_llm(
+                llm_prompt_pq_check, self.conversation.decode_pq_check
             )
+            print("pq check: ", output)
+            answered_personal_question_flag, entity, summary = output
             if answered_personal_question_flag:
                 self.conversation.add_personal_info(entity, summary, img_url, bot_image)
 
         print("Exiting detect_personal_information")
 
-    def get_relevant_info(self, query):
+    def get_relevant_info(self, query):  # , queue):
         print("get relevant info")
         kb_img_url = None
         relevant_info = ""
         if len(self.conversation.personal_info_files) > 0:
             relevant_info, kb_img_url = self.conversation.get_relevant_info(query)
+        # queue.put(("get_relevant_info", relevant_info, kb_img_url))
         return relevant_info, kb_img_url
 
     def response_to_user(self, relevant_info, user_message, internet_info, img_url):
@@ -83,21 +118,20 @@ class Assistant:
                     relevant_info, user_message, internet_info, img_url
                 )
                 print("prompt: ", prompt)
-                outputs = self.pipe(prompt)
-                output = outputs[0]["generated_text"]
-                res = self.conversation.decode_llm_response(output)
+                res = self.run_llm(prompt, self.conversation.decode_llm_response)
+                if res is None:
+                    raise
                 print("res: ", res)
                 return res, json.dumps(res)
             except:
                 pass
         return res, ""
 
-    def get_relevant_information_from_internet(self, query):
+    def get_relevant_information_from_internet(self, query):  # , queue):
         prompt = self.conversation.get_internet_info_prompt(query)
         print("internet info prompt: ", prompt)
-        output = self.pipe(prompt)[0]["generated_text"]
-        question = self.conversation.decode_get_info_result(output)
-        if question == "":
+        question = self.run_llm(prompt, self.conversation.decode_get_info_result)
+        if question is None or question == "":
             return ""
 
         url = "https://api.tavily.com/search"
@@ -119,11 +153,12 @@ class Assistant:
         return result["answer"]
 
     def process_message(self, query, img_url=None, response_img_url=None):
-        # Get relevant information from user personal details
+        start_time = time.time()
         relevant_info, kb_img_url = self.get_relevant_info(query)
-
-        # Get relevant information from the internet.
         internet_info = self.get_relevant_information_from_internet(query)
+
+        mid_time = time.time()
+        print(f"Time taken to retrieve information: {mid_time - start_time} seconds")
 
         # Get response from llm
         bot_image_url = None
@@ -135,6 +170,12 @@ class Assistant:
 
         response = res["message"]
         prompt: str = res["prompt"]
+
+        # Check if the user answered LLM's personal questions.
+        t = thread_with_trace(
+            target=self.detect_personal_information, args=(query, img_url, bot_image)
+        )
+        t.start()
 
         # Generate Image
         image = None
@@ -153,8 +194,9 @@ class Assistant:
             else:
                 bot_image = self.text2image(prompt)
 
-        # Check if the user answered LLM's personal questions.
-        self.detect_personal_information(query, img_url, bot_image)
+        end_time = time.time()
+        time_difference = end_time - start_time
+        print(f"Time taken to process the message: {time_difference} seconds")
 
         # Add user query to history.
         self.conversation.add_to_conv(query.strip())
@@ -166,15 +208,23 @@ class Assistant:
 
     def text2image(self, prompt):
         print("Inside text2image")
-        image = self.t2i(prompt=prompt).images[0]
+        self.t2i.to("cuda")
+        image = self.t2i(prompt=prompt, num_inference_steps=10).images[0]
+        self.t2i.to("cpu")
         image = image.resize((768, 768))
         return image
 
     def image2image(self, init_image, prompt):
         print("Inside image2image")
+        self.i2i.to("cuda")
         image = self.i2i(
-            prompt, image=init_image, strength=0.8, guidance_scale=10.5
+            prompt,
+            image=init_image,
+            strength=0.8,
+            guidance_scale=10.5,
+            num_inference_steps=10,
         ).images[0]
+        self.i2i.to("cpu")
         image = image.resize((768, 768))
         return image
 
