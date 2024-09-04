@@ -1,371 +1,208 @@
-################# LLM prompts #################
-assistant_response_prompt_template1 = [
-    {
-        "role": "system",
-        "content": """
-            You are a detail-oriented and intelligent chatbot equipped to respond to user queries and generate or edit images based on specific requests. Here's what you need to do:
-            1. Respond to Queries: Provide a thoughtful and accurate response to every user message, ensuring consistency and relevance. You must consider the context of the ongoing conversation to maintain continuity and coherence in your responses.
-            2. Assess Image Needs: Evaluate whether the user's query involves a requirement for an image. If an image is needed, discern whether it involves generating a new image or editing an existing one. Based on the specifics mentioned by the user, such as elements or styles, create a detailed image prompt that captures these requirements effectively.
-            3. Engage with the User: After addressing the user's query, engage them further by asking personal follow-up questions. This engagement should feel natural and aim to deepen the interaction, providing a more personalized and engaging user experience.
+################# Response to user prompts #################
+llm_response_output_format = """
+{
+    "reasoning": The resoning steps for the task 2 and 3.
+    "prompt": Prompt to the text-to-image model related to task 3. Return empty string if prompt is not required.
+    "message": The response to the user query related to task 2.
+}
+"""
 
-            Ensure your outputs are structured as follows:
-            {
-                "message": Provide a complete answer to the user's query, including a personal follow-up question to engage them further.
-                "task": Clearly specify the task type, categorizing it as 'Generation', 'Editing', or 'null' if no image is required based on the query.
-                "prompt": If the task involves image generation or editing, provide a detailed prompt that accurately reflects the user's requirements, ensuring it is ready to be used for creating or modifying the image. If no image is needed, this field should be 'null'.
-                "question": Include a personal follow-up question aimed at continuing the conversation, demonstrating attentiveness and interest in the user's preferences or experiences.
-            }
-        Your role is crucial in ensuring that the user feels listened to and engaged in a conversation that is both helpful and enjoyable.
-        """
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Generate an image of a dog playing in the park.\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "{\"message\": \"Sure, I'll create an image of a dog playing in the park for you. Do you have a favorite park you like to visit with pets?\", \"task\": \"Generation\", \"prompt\": \"A happy dog playing in a park, running around with a frisbee in its mouth. The park is lush green with trees and a clear blue sky.\", \"question\": \"Do you have a favorite park you like to visit with pets?\"}"
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Yes, I love taking my dog to Central Park. It's his favorite spot.\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "{\"message\": \"That sounds lovely! Central Park is a great place for dogs. Let me know if you need anything else.\", \"task\": \"null\", \"prompt\": \"null\", \"question\": \"null\"}"
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Can you give me a recipe for a vegan chocolate cake?\"}"
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                \"message\": \"Here's a delicious recipe for a vegan chocolate cake: Preheat your oven to 350°F (175°C). In a bowl, mix 1.5 cups of flour, 1 cup of sugar, 1/4 cup of cocoa powder, 1 tsp baking soda, and 1/2 tsp salt. Add 1 cup of water, 1/3 cup of vegetable oil, 1 tbsp vinegar, and 1 tsp vanilla extract. Mix until smooth, pour into a greased pan, and bake for 30 minutes. Do you enjoy baking often?\", 
-                \"task\": \"null\", 
-                \"prompt\": \"null\", 
-                \"question\": \"Do you enjoy baking often?\"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Yes, baking is one of my favorite hobbies. I find it very relaxing.\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "{\"message\": \"That's wonderful! Baking can indeed be very therapeutic. Let me know if you need more recipes or any other help.\", \"task\": \"null\", \"prompt\": \"null\", \"question\": \"null\"}"
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Edit this photo to add a sepia tone?\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "{\"message\": \"Sure, I can add a sepia tone to your photo. Here you go. Does this photo hold any special memories for you?\", \"task\": \"Editing\", \"prompt\": \"A user's uploaded photo to be edited with a sepia tone, giving it a warm, vintage look while enhancing details and maintaining clarity.\", \"question\": \"Does this photo hold any special memories for you?\"}"
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Yes, this is a photo from my first solo trip. It's very special to me.\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "{\"message\": \"That sounds like a wonderful memory. Solo trips can be so enriching. Let me know if there's anything else you'd like to enhance in this photo.\", \"task\": \"null\", \"prompt\": \"null\", \"question\": \"null\"}"
-    },
-    {
-        "role": "user",
-        "content": "{\"message\": \"Create an image of a futuristic cityscape at sunset?\"}"
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "message": "I'd be happy to create an image of a futuristic cityscape at sunset. Do you enjoy sci-fi movies or books that feature futuristic cities?",
-                "task": "Generation",
-                "prompt": "A futuristic cityscape during sunset, with towering skyscrapers, neon lights, and flying cars. The sky is a blend of orange and pink hues, reflecting off glass buildings.",
-                "question": "Do you enjoy sci-fi movies or books that feature futuristic cities?"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "message": "Can you brighten this image and make the colors pop more?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "message": "Sure, I can enhance the brightness and colors of your image to make it more vivid. What's the occasion for this photo?",
-                "task": "Editing",
-                "prompt": "A user's uploaded photo to be edited by brightening and enhancing the color saturation, making the colors more vibrant and the overall image more eye-catching.",
-                "question": "What's the occasion for this photo?"
-            }
-        """
-    }
-]
+few_shot_example = """
+User: Hello.
+Assistant: {
+    "reasoning": "",
+    "prompt": "",
+    "message": "Hello! It's nice to talk to you. How are you doing?"
+}
 
-personal_question_check_prompt_template = [
-    {
-        "role": "system",
-        "content": "Your task is to analyze a question and a user message to determine the nature of the question with respect to its personal relevance to the user and whether the user's message directly addresses the question. If the question is personal and the user's response is relevant, identify the type of personal relationship (keep it very specific) the question addresses and provide a combined concise summary and of the question and the user's message in one or two words. If the question is not personal or the response is irrelevant, return 'null' for both fields."
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "Who is your favorite author?",
-                "Answer": "I really enjoyed reading books by J.K. Rowling."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": "favorite author",
-                "gist": "Enjoyed J.K. Rowling Books"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "What is your mother's maiden name?",
-                "Answer": "Her name is Susan."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": "mother's name",
-                "gist": "mother's name Susan"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "Where did you grow up?",
-                "Answer": "I grew up in New Your City"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": "place of upbringing",
-                "gist": "Brought up in New York City"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "What is the boiling point of water?",
-                "Answer": "Water boils at 100 degrees Celsius."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": "null",
-                "gist": "null"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "Who is the president of France?",
-                "Answer": "Currently, Emmanuel Macron is the president."=
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                
-                "relationship": "null",
-                "gist": "null"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Question": "What is your favorite hobby?",
-                "Answer": "It's going to rain tomorrow."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relationship": null,
-                "gist": null
-            }
-        """
-    }
-]
+User: I've been feeling a bit lost. It's like there are gaps in my memory, and it's frustrating.
+Assistant: {
+    "reasoning": "The user is expressing frustration due to memory gaps, particularly in personal life.",
+    "prompt": "",
+    "message": "I can sense that you're feeling frustrated with the memory gaps. Can you remember a specific time when you felt like you couldn't recall something important? Was it related to work, personal life, or something else?"
+}
 
-kb_search_prompt = [
-    {
-        "role": "system",
-        "content": "Given a list of relationships and a specific user query, your task is to determine which relationship, if any, from the list is most relevant to the user's query. If no relationships apply, return \"null\". This will help provide a contextually appropriate response.",
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": "["mother", "best friend", "employer", "favorite teacher"]",
-                "User Query": "I need advice on handling a tough situation at work."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "employer"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": "["sibling", "coach", "neighbor"]"
-                "User Query": "Who should I talk to about improving my basketball skills?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "coach"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ""librarian", "mechanic", "baker"]",
-                "User Query": "Who can help me with legal advice about a contract?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "relevant_relationship": "null"
-            }
-        """
-    }
-]
+User: It's more about my personal life. I was trying to remember a family gathering, but it's all jumbled. I remember being there, but the details are missing.
+Assistant: {
+    "reasoning": "The user is trying to recall a family gathering but is struggling with the details.",
+    "prompt": "",
+    "message": "Do you remember any specific details about the family gathering? Was it a holiday, a birthday, or another occasion?"
+}
 
-enrich_usery_query_prompt = [
-    {
-        "role": "system",
-        "content": """
-            Given a list of relevant information and the corresponding list of relationships, and a specific user query, your task is to combine these elements to enrich the query *if needed*. 
-            The rule to combine these elements is find the most relevant piece of information from the "Relevant Information" list that provides good context to the user query. Enrich the user with this relevant piece of information. 
-            If none of the provided information is applicable, the output should return the original user query.
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ["employer", "best friend"]
-                "Relevant Information": ["I worked at Google for 5 years.", "John, my best friend for 20 years, has always been my confidant."],
-                "User Query": "I need advice on handling a tough situation."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "enriched_query": "I need advice on handling a tough situation at work with my employer, Google.",
-                "relation": "employer"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ["librarian", "mechanic", "rare collection supplier"]
-                "Relevant Information": ["I frequently visit the City Library and know the librarian well.", "Joe from Joe's Garage has been my trusted mechanic for 10 years.", "The librarian at City Library helped me find rare books for my collection."],
-                "User Query": "Who can help me with relationship advice?"
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "enriched_query": "Who can help me with relationship advice?",
-                "relation": "null"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ["financial advisor", "favourite fast food", "personal doctor"]
-                "Relevant Information": ["My financial advisor, Ms. Lopez, has guided me through many financial decisions for the past 3 years.", "I love eating at McDonalds!", "My personal doctor is Dr. Dummy"],
-                "User Query": "I need help planning my budget for the next year."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "enriched_query": "I need help planning my budget for the next year with my financial advisor, Ms. Lopez.",
-                "relation": "financial advisor"
-            }
-        """
-    },
-    {
-        "role": "user",
-        "content": """
-            {
-                "Relationships": ["home in 2000 year", "Daughter", "favourite street food"]
-                "Relevant Information": ["I lived in Madrid in the year 2000", "My Daugther's name is Maria", "I like tacos"],
-                "User Query": "Yes, I lived in Paris in the year 1999."
-            }
-        """
-    },
-    {
-        "role": "assistant",
-        "content": """
-            {
-                "enriched_query": "Yes, I lived in Paris in the year 1999.",
-                "relation": "null"
-            }
-        """
-    }
-]
+User: I think it was during a holiday, maybe Christmas. I remember the house being decorated, but everything else is kind of blurry.
+Assistant: {
+    "reasoning": "The user associates the memory with Christmas, which might help narrow down specific details.",
+    "prompt": "",
+    "message": "Christmas is a special time for many families. Do you remember anything about the decorations? Maybe a particular ornament or a Christmas tree? Sometimes those little details can help bring back the bigger picture."
+}
+
+User: There was definitely a tree, and I think it had colorful lights. I vaguely remember a star on top, but it's all so faint.
+Assistant: {
+    "reasoning": "The user recalls specific details about a Christmas tree, which can be visualized to potentially trigger further memories.",
+    "prompt": "",
+    "message": "That's a great start. How about I generate an image of a Christmas tree with colorful lights and a star on top? It might help make the memory clearer."
+}
+
+User: Yes, please. That might help.
+Assistant: {
+    "reasoning": "Displaying the image might help the user to reconnect with the memory.",
+    "prompt": "A decorated Christmas tree with colorful lights and a shining star on top, in a cozy indoor setting.",
+    "message": "(Displaying the image) Here's an image of a Christmas tree with bright, colorful lights and a star shining on top. Does this look familiar to you?"
+}
+
+User: Yes, it does. I think I remember gathering around the tree with my family. We used to exchange gifts, and I remember feeling so excited. The star on top was always my favorite part.
+Assistant: {
+    "reasoning": "The image seems to have triggered additional memories related to the family gathering.",
+    "prompt": "A family gathered around a Christmas tree with bright, colorful lights and a star shining on top. They are exchanging gifts.",
+    "message": "That sounds like a beautiful memory. Do you remember any specific gifts or moments from that day? Maybe a special conversation or a favorite holiday tradition?"
+}
+
+User: I think… yes, I remember unwrapping a gift from my parents. It was a toy I had wanted for a long time. I remember feeling so happy and grateful. And we always sang carols together—those were such warm, joyful times.
+Assistant: {
+    "reasoning": "The user is now recalling more specific and positive memories, indicating progress in their recollection process.",
+    "prompt": "",
+    "message": "That's wonderful to hear. It sounds like your family's Christmas traditions were very meaningful to you. If you want to explore more of those memories or talk about other special moments, I'm always here to help."
+}
+
+User: Thank you. I feel like I'm starting to piece things together again, and it's comforting. I'd like to remember more about those times.
+"""
+
+assistant_response_prompt_template1 = """
+    You are an agent who access to a text-to-image model that can generate or edit an image.
+    You have the following 3 tasks:
+    1. Give your reasoning on how you plan to approach the below 2 tasks.
+    2. Respond to a user's message by using past conversations and their personal context. You can include real-world knowledge in your reply and should definitely ask follow-up questions. These questions should help the user reflect on their experiences and connect with the world around them. You could ask something like:
+      a. "Do you remember this <place/thing/memory/etc.>?", 
+      b. "What do you remember from the looking at it or reading the message".
+      c. if you an image is generated, you can something like "how does this image make you feel",
+      d. Or any other question, that will help the user remember things.
+    3. You'll be informed if the user provided an image. Based on the user's query, determine whether you need to use the text-to-image model to generate or edit an image, and create an appropriate prompt for it. If no prompt is needed, simply return an empty string. You can use the context to assist in generating the prompt.
+        
+    Always use the following json output format:
+    {}
+
+    Example:
+    {}
+    
+    ***********************************************************************************************************************************
+    {}
+
+    {}
+
+    {}
+
+    {}
+
+    Here is the user query, answer it:
+    User Query: {}
+    Assistant:
+"""
+
+######################## Information search prompt ####################################
+get_info_examples = """
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Example 1
+Conversation:
+User: What are the symptoms of the flu?
+
+Output:
+{
+    "reasoning": "The user is asking for information that is general knowledge and can be answered without an internet search.",
+    "search prompt": ""
+}
+
+Example 2
+Conversation:
+User: Can you tell me what the weather will be like tomorrow in New York?
+
+Output:
+{
+    "reasoning": "The user asked for a weather forecast, which requires up-to-date information that can be retrieved from the internet.",
+    "search prompt": "New York weather forecast for tomorrow"
+}
+
+Example 3
+Conversation:
+User: I'm curious about the benefits of having a dog.
+
+Output:
+{
+    "reasoning": "The user asked about the benefits of having a dog, which requires specific information that can be retrieved from the internet.",
+    "search prompt": "Benefits of having a dog"
+}
+
+Example 4
+Conversation:
+User: What is the capital of Spain?
+
+Output:
+{
+    "reasoning": "The user is asking for factual information that is well-known, so no additional search is needed.",
+    "search prompt": ""
+}
+
+Example 5
+Conversation:
+User: Do you have any tips on how to improve my time management skills?
+
+Output:
+{
+    "reasoning": "The user is asking for tips on time management, which would require external sources to provide detailed information.",
+    "search prompt": "Tips to improve time management skills"
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+"""
+
+get_info_output_format = """
+For each case, provide the output in the following format:
+{
+    "reasoning": "<Your reasoning behind generating the search prompt>",
+    "search prompt": "<Prompt to browser tool to retrieve the required information from the internet>"
+}
+"""
+
+assistant_get_info_prompt = (
+    message
+) = """
+You have access to a browser tool that allows you to search the internet for information. Based on the conversation below, determine if additional information is needed to respond to the user's query. If so, generate an appropriate search query to find the relevant information. If no additional information is needed, return an empty string.
+
+{}
+
+{}
+
+Use the structure and logic from these examples to complete the task for the conversation provided below.
+
+<Conversation>
+{}
+</Conversation>
+Output:
+"""
+
+######################## Personal information check prompts ####################################
+personal_info_output_format = '{ "entity": # Entity identified from the user\'s first-person point of view, "summary": # A concise summary of the information. }'
+example_personal_info_output = '{ "entity": "I am a job seeker in AI/ML, "summary": "Looking for a job in software engineering, with a focus on AI and ML. Has 5 years of experience, including 2 years in AI/ML. Seeks a role working on cutting-edge projects and skill development." }'
+
+
+personal_question_check_prompt_template_3 = """
+Given a user conversation with you, your task is to capture key information from the most recent dialogues and providing a concise summary of the details provided. Your output should be formatted as:
+{}
+
+Strictly do not output anything else.
+
+***********************************************************************************************************************************
+Example:
+    Context: 
+    Assistant: Hello! How can I assist you today? 
+    User: Hi, I'm looking for a new job in software engineering, particularly interested in roles focusing on artificial intelligence and machine learning.
+    Assistant: Could you tell me a bit more about your experience and what you're looking for in your next role?
+    User: User: Sure! I have 5 years of experience in software engineering, with the last 2 years focusing on AI and ML. I'm looking for a role where I can work on cutting-edge projects and continue to develop my skills.
+
+    Based on this conversation, extract information:
+    Reponse: {}
+***********************************************************************************************************************************
+
+Context:
+{}
+
+Based on this conversation, extract information:
+Reponse:"""
