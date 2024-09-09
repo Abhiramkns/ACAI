@@ -15,6 +15,7 @@ from transformers import (
 
 from .conv import Conversation
 from .stop_thread_util import thread_with_trace
+from .user import User
 
 
 def pipe_thread(pipe, prompt):
@@ -22,7 +23,7 @@ def pipe_thread(pipe, prompt):
 
 
 class Assistant:
-    def __init__(self, config) -> None:
+    def __init__(self) -> None:
         # Automatic speech recognition.
         self.transcriber = pipeline(
             "automatic-speech-recognition", model="openai/whisper-base.en"
@@ -48,9 +49,11 @@ class Assistant:
             use_safetensors=True,
         )
 
-        self.conversation = Conversation(config)
+        self.conversation = Conversation()
 
         self.retry = 2
+
+        self.user: User = None
 
     def run_llm(self, prompt, response_decoder=None):
         inputs = self.tokenizer([prompt], return_tensors="pt").to("cuda")
@@ -83,7 +86,7 @@ class Assistant:
     def detect_personal_information(self, query, img_url=None, bot_image=None):
         print("Entering detect_personal_information")
         llm_prompt_pq_check = self.conversation.get_check_personal_question_prompt(
-            query
+            self.user, query
         )
         if llm_prompt_pq_check is not None:
             print("llm_pq_prompt: ", llm_prompt_pq_check)
@@ -97,13 +100,14 @@ class Assistant:
 
         print("Exiting detect_personal_information")
 
-    def get_relevant_info(self, query):  # , queue):
+    def get_relevant_info(self, query):
         print("get relevant info")
         kb_img_url = None
         relevant_info = ""
-        if len(self.conversation.personal_info_files) > 0:
-            relevant_info, kb_img_url = self.conversation.get_relevant_info(query)
-        # queue.put(("get_relevant_info", relevant_info, kb_img_url))
+        if len(self.user.personal_info_files) > 0:
+            relevant_info, kb_img_url = self.conversation.get_relevant_info(
+                self.user, query
+            )
         return relevant_info, kb_img_url
 
     def response_to_user(self, relevant_info, user_message, internet_info, img_url):
@@ -115,7 +119,7 @@ class Assistant:
         for _ in range(self.retry):
             try:
                 prompt = self.conversation.get_llm_prompt(
-                    relevant_info, user_message, internet_info, img_url
+                    self.user, relevant_info, user_message, internet_info, img_url
                 )
                 print("prompt: ", prompt)
                 res = self.run_llm(prompt, self.conversation.decode_llm_response)
@@ -128,7 +132,7 @@ class Assistant:
         return res, ""
 
     def get_relevant_information_from_internet(self, query):  # , queue):
-        prompt = self.conversation.get_internet_info_prompt(query)
+        prompt = self.conversation.get_internet_info_prompt(self.user, query)
         print("internet info prompt: ", prompt)
         question = self.run_llm(prompt, self.conversation.decode_get_info_result)
         if question is None or question == "":
@@ -147,9 +151,6 @@ class Assistant:
             "exclude_domains": [],
         }
         result = json.loads(requests.post(url, json=payload).content)
-        with open("internet_response", "w") as f:
-            json.dump(result, f)
-        print("internet result: ", result["answer"])
         return result["answer"]
 
     def process_message(self, query, img_url=None, response_img_url=None):
@@ -173,7 +174,8 @@ class Assistant:
 
         # Check if the user answered LLM's personal questions.
         t = thread_with_trace(
-            target=self.detect_personal_information, args=(query, img_url, bot_image_url)
+            target=self.detect_personal_information,
+            args=(query, img_url, bot_image_url),
         )
         t.start()
 
@@ -199,10 +201,10 @@ class Assistant:
         print(f"Time taken to process the message: {time_difference} seconds")
 
         # Add user query to history.
-        self.conversation.add_to_conv(query.strip())
+        self.user.add_to_conv(query.strip())
 
         # Add llm resposne to the history
-        self.conversation.add_to_conv(output, bot_image_url, role="assistant")
+        self.user.add_to_conv(output, bot_image_url, role="assistant")
 
         return response, bot_image, query
 
@@ -228,7 +230,10 @@ class Assistant:
         image = image.resize((768, 768))
         return image
 
-    def generate(self, query, image_url=None, response_image_url=None, audio=None):
+    def generate(
+        self, user, query, image_url=None, response_image_url=None, audio=None
+    ):
+        self.user = user
         if audio is not None:
             sr, y = audio
             y = y.astype(np.float32)

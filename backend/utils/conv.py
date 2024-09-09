@@ -27,29 +27,13 @@ def return_list():
 
 
 class Conversation:
-    def __init__(self, config) -> None:
-        self.config = config
-
-        self.history = []
-        if os.path.exists(os.path.join(config["logs"], "llm_conv.json")):
-            with open(os.path.join(config["logs"], "llm_conv.json"), "r") as f:
-                self.conv_log = json.load(f)
-        else:
-            self.conv_log = self.history.copy()
-
-        self.curr_conv = []
-
-        if not os.path.exists(os.path.join(config["logs"], "personal_info")):
-            os.makedirs(os.path.join(config["logs"], "personal_info"))
-        files = [*Path(os.path.join(config["logs"], "personal_info")).glob("*")]
-        self.personal_info_files = files
-
+    def __init__(self) -> None:
         # RAG model settings
         Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5")
         Settings.llm = Ollama(model="llama3", request_timeout=360.0)
 
-    def get_internet_info_prompt(self, query):
-        conversation_str = self.get_conversation_str()
+    def get_internet_info_prompt(self, user, query):
+        conversation_str = user.get_conversation_str()
         conversation_str += f"User: {query.strip()}\n"
         if conversation_str == "":
             return None
@@ -58,8 +42,8 @@ class Conversation:
         )
         return prompt
 
-    def get_llm_prompt(self, relevant_info, user_message, internet_info, img_url):
-        conversation_str = self.get_conversation_str()
+    def get_llm_prompt(self, user, relevant_info, user_message, internet_info, img_url):
+        conversation_str = user.get_conversation_str()
         if conversation_str != "":
             conversation_str = f"Conversation: {conversation_str}"
         if relevant_info != "":
@@ -79,18 +63,6 @@ class Conversation:
             user_message,
         )
         return prompt
-
-    def add_to_conv(self, content, img_url=None, role="user"):
-        if role == "user":
-            content = '{"message": ' + f'"{content}"' + "}"
-        self.history.append({"role": role, "content": content})
-        self.conv_log.append({"role": role, "content": content, "img_url": img_url})
-
-        self.curr_conv.append({"role": role, "content": content})
-        if os.path.exists(os.path.join(self.config["logs"], "conversation.json")):
-            with open(os.path.join(self.config["logs"], "conversation.json"), "w") as f:
-                json.dump(self.curr_conv, f)
-        return self.history
 
     def decode_get_info_result(self, output):
         pattern = (
@@ -116,22 +88,10 @@ class Conversation:
         except:
             return None
 
-    def get_conversation_str(self):
-        context_str = ""
-        for i in range(len(self.curr_conv)):
-            message = self.curr_conv[i]
-            if message["role"] == "assistant":
-                assistant_message = json.loads(message["content"])
-                context_str += f"Assistant: {assistant_message['message']}\n"
-            else:
-                user_message = json.loads(message["content"])
-                context_str += f"User: {user_message['message']}\n"
-        return context_str
-
-    def get_check_personal_question_prompt(self, user_response):
-        if len(self.curr_conv) == 0:
+    def get_check_personal_question_prompt(self, user, user_response):
+        if len(user.curr_conv) == 0:
             return None
-        context_str = self.get_conversation_str()
+        context_str = user.get_conversation_str()
         prompt: str = personal_question_check_prompt_template_3.format(
             personal_info_output_format, example_personal_info_output, context_str
         )
@@ -148,9 +108,9 @@ class Conversation:
         else:
             return False, None, None
 
-    def get_relevant_info(self, user_query):
+    def get_relevant_info(self, user, user_query):
         documents = SimpleDirectoryReader(
-            os.path.join(self.config["logs"], "personal_info"), recursive=True
+            user.personal_info_dir, recursive=True
         ).load_data()
         index = VectorStoreIndex.from_documents(documents)
 
@@ -194,30 +154,3 @@ class Conversation:
 
             return enriched_query, img_url
         return None, None
-
-    def add_personal_info(self, entity, summary, img_url=None, bot_image=None):
-        file_path = os.path.join(self.config["logs"], "personal_info", f"{entity}.txt")
-        directory_path = os.path.dirname(file_path)
-        os.makedirs(directory_path, exist_ok=True)
-        with open(file_path, "w") as f:
-            f.write(summary)
-        self.personal_info_files.append(file_path)
-
-        if img_url is not None:
-            file_path = os.path.join(
-                self.config["logs"], "personal_info", f"{entity}_img_url.txt"
-            )
-            with open(file_path, "w") as f:
-                f.write(img_url)
-
-        if bot_image is not None:
-            img_save_path = os.path.join(
-                self.config["BOT_UPLOAD_FOLDER"], f"{entity}_bot_img.jpg"
-            )
-            bot_image.save(img_save_path)
-
-            file_path = os.path.join(
-                self.config["logs"], "personal_info", f"{entity}_bot_img_url.txt"
-            )
-            with open(file_path, "w") as f:
-                f.write(img_save_path)
