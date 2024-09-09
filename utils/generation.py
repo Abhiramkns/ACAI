@@ -173,7 +173,7 @@ class Assistant:
 
         # Check if the user answered LLM's personal questions.
         t = thread_with_trace(
-            target=self.detect_personal_information, args=(query, img_url, bot_image)
+            target=self.detect_personal_information, args=(query, img_url, bot_image_url)
         )
         t.start()
 
