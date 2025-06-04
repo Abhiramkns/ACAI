@@ -136,7 +136,7 @@ class Assistant:
 
         url = "https://api.tavily.com/search"
         payload = {
-            "api_key": "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",
+            "api_key": "<api_key>",
             "query": question,
             "search_depth": "basic",
             "include_answer": True,
